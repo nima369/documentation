@@ -89,6 +89,96 @@ This example uses [Web3.py](https://web3py.readthedocs.io/en/stable/) to retriev
     </div>
 </div>
 
+## Getting a different price denomination
+
+Chainlink Data Feeds can be used in combination to derive denominated price pairs in other currencies.
+
+If you require a denomination other than what is provided, you can use two data feeds to derive the pair that you need. For example, if you needed a BTC / EUR price, you could take the BTC / USD feed and the EUR / USD feed and derive BTC / EUR using division.
+
+![Request Model Diagram](/images/price-feed-conversion-equation.gif)
+
+> 🚧 Important
+> 
+> If you are using a Solidity version before 0.8.0 use [OpenZeppelin's SafeMath](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/math/SafeMath.sol).
+
+```solidity USD Denominated Base
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.7;
+
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+
+contract DerivedPriceConsumerV3 {
+
+    AggregatorV3Interface internal priceFeedBtcUsd;
+    AggregatorV3Interface internal priceFeedEurUsd;
+
+    /**
+     * Network: Kovan
+     * Aggregator: BTC/USD
+     * Address: 0x6135b13325bfC4B00278B4abC5e20bbce2D6580e
+     * Decimals: 8
+     * Aggregator: EUR/USD
+     * Address: 0x0c15Ab9A0DB086e062194c273CC79f41597Bbf13
+     * Decimals: 8
+     */
+    constructor() {
+        priceFeedBtcUsd = AggregatorV3Interface(0x6135b13325bfC4B00278B4abC5e20bbce2D6580e);
+        priceFeedEurUsd = AggregatorV3Interface(0x0c15Ab9A0DB086e062194c273CC79f41597Bbf13);
+    }
+
+    /*
+     * Returns the derived price
+     */
+    function getDerivedPrice() public view returns (int) {
+        ( , int priceBtcUsd, , , ) = priceFeedBtcUsd.latestRoundData();
+        ( , int priceEurUsd, , , ) = priceFeedEurUsd.latestRoundData();
+        
+        return (priceBtcUsd * int(10**getDerivedPriceDecimals())) / priceEurUsd;
+    }
+    function getDerivedPriceDecimals() public view returns (uint8) {
+        return priceFeedBtcUsd.decimals() + priceFeedEurUsd.decimals();
+    }
+ }
+```
+```solidity ETH Denominated Base
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.7;
+
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+
+contract DerivedPriceConsumerV3 {
+
+    AggregatorV3Interface internal priceFeedDaiEth;
+    AggregatorV3Interface internal priceFeedEthUsd;
+
+    /**
+     * Network: Kovan
+     * Aggregator: DAI/ETH
+     * Address: 0x22B58f1EbEDfCA50feF632bD73368b2FdA96D541
+     * Decimals: 18
+     * Aggregator: ETH/USD
+     * Address: 0x9326BFA02ADD2366b30bacB125260Af641031331
+     * Decimals: 8
+     */
+    constructor() {
+        priceFeedDaiEth = AggregatorV3Interface(0x22B58f1EbEDfCA50feF632bD73368b2FdA96D541);
+        priceFeedEthUsd = AggregatorV3Interface(0x9326BFA02ADD2366b30bacB125260Af641031331);
+    }
+
+    /*
+     * Returns the derived price
+     */
+    function getDerivedPrice() public view returns (int) {
+        ( , int priceDaiEth, , ,) = priceFeedDaiEth.latestRoundData();
+        ( , int priceEthUsd, , ,) = priceFeedEthUsd.latestRoundData();
+        return priceDaiEth *  priceEthUsd;
+    }
+    function getDerivedPriceDecimals() public view returns (uint8) {
+        return priceFeedDaiEth.decimals() + priceFeedEthUsd.decimals();
+    }
+ }
+```
+
 ## How Do Data Feeds Get Their Data?
 
 Data Feeds are aggregated from many data sources by a decentralized set of independent Node Operators. The [Decentralized Data Model](../architecture-decentralized-model/) describes this in detail.
